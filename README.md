@@ -2,6 +2,8 @@
 
 VarnishNCSA Monitor - Bash wrapper script to provide pretty colorized output of request/responses information
 
+Supports Varnish (varnishncsa utility) of 3.x and 4.x versions
+
 ### Usage
 ```
 varnishncsa_monitor [-l hostname] [-n instance] [-t] [-e] -[c] [-m] [-j] [-h]
