@@ -9,6 +9,7 @@ CODE40X=0
 CODE30X=0
 CODE20X=0
 ERR404=0
+DATE=1
 HOST="`hostname`"
 INSTANCE=""
 REQHANDLER=""
@@ -25,7 +26,7 @@ LOG_FORMAT="%h|%{%Y-%m-%d}t|%{%H:%M:%S}t|%{Host}i|%U|%q|%m|%s|%b|%{Varnish:time_
 # $10 %{Varnish:time_firstbyte}x  - Backend response time
 # $11 %{Varnish:handling}x        - Request handler ( hit / miss / pass / pipe / error )
 
-while getopts "l:n:r:t5432mjh" Option; do
+while getopts "l:n:r:t5432mjdh" Option; do
   case $Option in
     l ) HOST=$OPTARG;;
     n ) INSTANCE=$OPTARG;;
@@ -37,6 +38,7 @@ while getopts "l:n:r:t5432mjh" Option; do
     2 ) CODE20X=1;;
     m ) ERR404=1;;
     j ) COLORS=0;;
+    d ) DATE=0;;
     h )
       echo "`basename $0` - pretty output of Varnish NCSA logs"
       echo ""
@@ -53,6 +55,7 @@ while getopts "l:n:r:t5432mjh" Option; do
       echo "   -2   display 20x http code output"
       echo "   -m   display only 404 errors"
       echo "   -j   do not use colors on output"
+      echo "   -j   do not print date and time on output"
       echo "   -h   displays this help message"  
       echo ""
       exit 0
@@ -80,6 +83,7 @@ ${CMD[@]} | awk -F'|' \
   -v code30x="$CODE30X" \
   -v code20x="$CODE20X" \
   -v err404="$ERR404" \
+  -v print_date="$DATE" \
   -v colors="$COLORS" \
   -v response_handler_filter="$RESHANDLER" \
 'BEGIN {
@@ -122,8 +126,8 @@ ${CMD[@]} | awk -F'|' \
   ######## Variable definition
 
   request_ip = $1
-  time_date = $2
-  time_time = $3
+  time_date = "[" $2 " "
+  time_time = $3 "] "
   request_host = $4
   request_url = $5
   request_query = $6
@@ -315,9 +319,15 @@ ${CMD[@]} | awk -F'|' \
   else {
     ok = "1"
   }
+
+  if (print_date == "0") {
+    time_date = ""
+    time_time = ""
+  }
+
   ######## Output
   if (ok == "1" ) {
-    printf("%s[%s %s] %s %s %s%s%s %s [ %s ]%s\n", msg_bgn, time_date, time_time, response_handler, response_status, request_host, request_url, request_query, request_ip, response_ttfb, msg_end)
+    printf("%s%s%s%s %s %s%s%s %s [ %s ]%s\n", msg_bgn, time_date, time_time, response_handler, response_status, request_host, request_url, request_query, request_ip, response_ttfb, msg_end)
   }
 
   ########
