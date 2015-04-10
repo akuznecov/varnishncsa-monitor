@@ -105,6 +105,7 @@ ${CMD[@]} | awk -F'|' \
   response_size = ""
   response_ttfb = ""
   response_handler = ""
+  whitespaces_add = 0
   msg_end = "\033[0m"
   msg_hit_200  = "\033[1;92m\033[1m" ; # green high
   msg_hit_404  = "\033[1;31m\033[1m" ; # red
@@ -320,9 +321,17 @@ ${CMD[@]} | awk -F'|' \
     ok = "1"
   }
 
+  # trim date/time from output
   if (print_date == "0") {
     time_date = ""
     time_time = ""
+  }
+
+  # add extra whitespace(s) for response handler on output (to align columns)
+  if (length(response_handler) < 5) {
+    whitespaces_add = sprintf("%*s",5 - length(response_handler),"");
+    gsub(/./," ",whitespaces_add);
+    response_handler = response_handler "" whitespaces_add
   }
 
   ######## Output
@@ -349,4 +358,5 @@ ${CMD[@]} | awk -F'|' \
   response_size = ""
   response_ttfb = ""
   response_handler = ""
+  whitespaces_add = 0
 }'
