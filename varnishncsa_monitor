@@ -220,7 +220,7 @@ ${CMD[@]} | awk -F'|' \
         ok = "1"
       }
     }
-    else if ( resp_ok == "1" && (code50x == "0" && code40x == "0" && code30x == "0" && code20x == "0") ) {
+    else if ( resp_ok == "1" && (code50x == "0" && code40x == "0" && code30x == "0" && code20x == "0" && err404 == "0") ) {
       ok = "1"
     }
 
