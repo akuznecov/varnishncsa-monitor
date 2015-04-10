@@ -3,13 +3,15 @@
 trap 'echo -e "\033[0m"; exit' SIGINT
 
 COLORS=1
-TRIM=0
-ERR50X=0
+TRIMSTATIC=0
+CODE50X=0
+CODE40X=0
+CODE30X=0
+CODE20X=0
 ERR404=0
-ERR40X=0
 HOST="`hostname`"
-PREFIX=$HOST
 INSTANCE=""
+REQHANDLER=""
 LOG_FORMAT="%h|%{%Y-%m-%d}t|%{%H:%M:%S}t|%{Host}i|%U|%q|%m|%s|%b|%{Varnish:time_firstbyte}x|%{Varnish:handling}x"
 # $1  %h                          - remote host
 # $2  %{%Y-%m-%d}t                - datetime of request 
@@ -18,38 +20,47 @@ LOG_FORMAT="%h|%{%Y-%m-%d}t|%{%H:%M:%S}t|%{Host}i|%U|%q|%m|%s|%b|%{Varnish:time_
 # $5  %U                          - URL (without query string)
 # $6  %q                          - Query string
 # $7  %m                          - HTTP request method
-# $8  %s                          - Response HTTP response_status code
+# $8  %s                          - Response HTTP status code
 # $9  %b                          - Response size (bytes)
 # $10 %{Varnish:time_firstbyte}x  - Backend response time
 # $11 %{Varnish:handling}x        - Request handler ( hit / miss / pass / pipe / error )
 
-while getopts "l:n:tecmjh" Option; do
+while getopts "l:n:r:t5432mjh" Option; do
   case $Option in
     l ) HOST=$OPTARG;;
     n ) INSTANCE=$OPTARG;;
-    t ) TRIM=1;;
-    e ) ERR50X=1;;
-    c ) ERR40X=1;;
+    r ) RESHANDLER=$OPTARG;;
+    t ) TRIMSTATIC=1;;
+    5 ) CODE50X=1;;
+    4 ) CODE40X=1;;
+    3 ) CODE30X=1;;
+    2 ) CODE20X=1;;
     m ) ERR404=1;;
     j ) COLORS=0;;
     h )
       echo "`basename $0` - pretty output of Varnish NCSA logs"
       echo ""
-      echo "Usage: `basename $0` options (-lntecmj)"
+      echo "Usage: `basename $0` [-l hostname] [-n instance] [-r <hit|miss|pass|pipe>] [-t] [-5] [-4] [-3] [-2] [-m] [-j] [-h]"
       echo ""
       echo "Arguments"
       echo "   -l   host to monitor, via SSH (default is localhost)"
       echo "   -n   specify Varnish instance"
-      echo "   -t   do not display all static files (cs, js, images, etc...)"
-      echo "   -e   display only 50x errors"
-      echo "   -c   display only 40x errors"
+      echo "   -r   response handler filter (hit ,miss, pass, pipe)"
+      echo "   -t   trim static files (cs, js, images, etc...) from output"
+      echo "   -5   display 50x http code output"
+      echo "   -4   display 40x http code output"
+      echo "   -3   display 30x http code output"
+      echo "   -2   display 20x http code output"
       echo "   -m   display only 404 errors"
       echo "   -j   do not use colors on output"
       echo "   -h   displays this help message"  
       echo ""
       exit 0
       ;;
-    * ) echo "Unknown option "$Option;;
+    * )
+      echo "Unknown option "$Option
+      exit 0
+      ;;
   esac
 done
 shift $(($OPTIND - 1))
@@ -63,12 +74,22 @@ else
 fi
 
 ${CMD[@]} | awk -F'|' \
-  -v trim="$TRIM" \
-  -v err50x="$ERR50X" \
-  -v err40x="$ERR40X" \
+  -v trim_static="$TRIMSTATIC" \
+  -v code50x="$CODE50X" \
+  -v code40x="$CODE40X" \
+  -v code30x="$CODE30X" \
+  -v code20x="$CODE20X" \
   -v err404="$ERR404" \
   -v colors="$COLORS" \
+  -v response_handler_filter="$RESHANDLER" \
 'BEGIN {
+  ok = "0"
+  code2_ok = "0"
+  code3_ok = "0"
+  code4_ok = "0"
+  code5_ok = "0"
+  code404_ok = "0"
+  resp_ok = "0"
   request_ip = ""
   time_date = ""
   time_time = ""
@@ -79,7 +100,7 @@ ${CMD[@]} | awk -F'|' \
   response_status = ""
   response_size = ""
   response_ttfb = ""
-  response_result = "miss"
+  response_handler = ""
   msg_end = "\033[0m"
   msg_hit_200  = "\033[1;92m\033[1m" ; # green high
   msg_hit_404  = "\033[1;31m\033[1m" ; # red
@@ -97,6 +118,9 @@ ${CMD[@]} | awk -F'|' \
 }   
 
 { 
+
+  ######## Variable definition
+
   request_ip = $1
   time_date = $2
   time_time = $3
@@ -107,95 +131,11 @@ ${CMD[@]} | awk -F'|' \
   response_status = $8
   response_size = $9
   response_ttfb = $10
-  response_result = $11
+  response_handler = $11
 
+  ########  Colorizers
 
-  if ( trim == "1" ) {
-    if ( request_url ~ /\/files\// \
-      || request_url ~ /\.sql/ \
-      || request_url ~ /\.txt/ \
-      || request_url ~ /\.mp4/ \
-      || request_url ~ /\.webm/ \
-      || request_url ~ /\.asf/ \
-      || request_url ~ /\.asx/ \
-      || request_url ~ /\.wax/ \
-      || request_url ~ /\.wmv/ \
-      || request_url ~ /\.wmx/ \
-      || request_url ~ /\.bmp/ \
-      || request_url ~ /\.bz2/ \
-      || request_url ~ /\.class/ \
-      || request_url ~ /\.css/ \
-      || request_url ~ /\.divx/ \
-      || request_url ~ /\.doc/ \
-      || request_url ~ /\.docx/ \
-      || request_url ~ /\.eot/ \
-      || request_url ~ /\.exe/ \
-      || request_url ~ /\.flv/ \
-      || request_url ~ /\.gif/ \
-      || request_url ~ /\.gzip/ \
-      || request_url ~ /\.gz/ \
-      || request_url ~ /\.htc/ \
-      || request_url ~ /\.ico/ \
-      || request_url ~ /\.jpeg/ \
-      || request_url ~ /\.jpg/ \
-      || request_url ~ /\.js/ \
-      || request_url ~ /\.mdb/ \
-      || request_url ~ /\.mid/ \
-      || request_url ~ /\.midi/ \
-      || request_url ~ /\.mov/ \
-      || request_url ~ /\.qt/ \
-      || request_url ~ /\.mp3/ \
-      || request_url ~ /\.m4a/ \
-      || request_url ~ /\.m4v/ \
-      || request_url ~ /\.mov/ \
-      || request_url ~ /\.mpeg/ \
-      || request_url ~ /\.mpg/ \
-      || request_url ~ /\.mpe/ \
-      || request_url ~ /\.mpp/ \
-      || request_url ~ /\.odb/ \
-      || request_url ~ /\.odc/ \
-      || request_url ~ /\.odf/ \
-      || request_url ~ /\.odg/ \
-      || request_url ~ /\.odp/ \
-      || request_url ~ /\.ods/ \
-      || request_url ~ /\.odt/ \
-      || request_url ~ /\.ogg/ \
-      || request_url ~ /\.ogv/ \
-      || request_url ~ /\.otf/ \
-      || request_url ~ /\.pdf/ \
-      || request_url ~ /\.png/ \
-      || request_url ~ /\.pot/ \
-      || request_url ~ /\.pps/ \
-      || request_url ~ /\.ppt/ \
-      || request_url ~ /\.pptx/ \
-      || request_url ~ /\.ra/ \
-      || request_url ~ /\.ram/ \
-      || request_url ~ /\.rar/ \
-      || request_url ~ /\.svg/ \
-      || request_url ~ /\.svgz/ \
-      || request_url ~ /\.swf/ \
-      || request_url ~ /\.tar/ \
-      || request_url ~ /\.tbz/ \
-      || request_url ~ /\.tgz/ \
-      || request_url ~ /\.tif/ \
-      || request_url ~ /\.tiff/ \
-      || request_url ~ /\.ttf/ \
-      || request_url ~ /\.wav/ \
-      || request_url ~ /\.wma/ \
-      || request_url ~ /\.woff/ \
-      || request_url ~ /\.wri/ \
-      || request_url ~ /\.xla/ \
-      || request_url ~ /\.xls/ \
-      || request_url ~ /\.xlsx/ \
-      || request_url ~ /\.xlt/ \
-      || request_url ~ /\.xlw/ \
-      || request_url ~ /\.xml/ \
-      || request_url ~ /\.zip/ ) {
-      ok = "0"
-    }
-  }
-
-  if ( colors == "1" && (response_result == "miss" || response_result == "error" || response_result == "pipe" || response_result == "pass" || response_result == "-")) {
+  if ( colors == "1" && (response_handler == "miss" || response_handler == "error" || response_handler == "pipe" || response_handler == "pass" || response_handler == "-")) {
     if (response_status == "200") {
       msg_bgn = msg_miss_200
     }
@@ -235,36 +175,159 @@ ${CMD[@]} | awk -F'|' \
     }        
   }
 
-  if ( err50x == "1" ) {
-    if (response_status ~ /^5/) {
-      ok = "1"
-    } else {
-      ok = "0"
+  ######## Filters
+
+  ### Allow filtered output only
+  if (length(response_handler_filter) != 0 || trim_static == "1" || code50x == "1" || code40x == "1" || code30x == "1" || code20x == "1" || err404 == "1") {
+
+    ## Disallow all
+    ok = "0"
+
+    ## Allow by handler
+    if (length(response_handler_filter) != 0) {
+      if ( response_handler_filter == response_handler) {
+        resp_ok = "1"
+      }
     }
-  }
-
-  if ( err404 == "1" ) {
-    if (response_status == "404") {
-      ok = "1"
-    } else {
-      ok = "0"
+    
+    ## Allow by status code or 404
+    if (code50x == "1" || code40x == "1" || code30x == "1" || code20x == "1") {
+      if ( code50x == "1" && response_status ~ /^5/ ) {
+        code5_ok = "1"
+      }
+      if ( code40x == "1" && response_status ~ /^4/ ) {
+        code4_ok = "1"
+      }
+      if ( code30x == "1" && response_status ~ /^3/ ) {
+        code3_ok = "1"
+      }
+      if ( code20x == "1" && response_status ~ /^2/) {
+        code2_ok = "1"
+      }
+      if (resp_ok == "1" && (code2_ok == "1" || code3_ok == "1" || code4_ok == "1" || code5_ok == "1") ) {
+        ok = "1"
+      }
+      else if (length(response_handler_filter) == 0 && resp_ok = "0" && (code2_ok == "1" || code3_ok == "1" || code4_ok == "1" || code5_ok == "1")) {
+        ok = "1"
+      }
     }
-  }
-
-  if ( err40x == "1" ) {
-    if (response_status ~ /^4/) {
-      ok = "1"
-    } else {
-      ok = "0"
+    else if ( err404 == "1" && response_status == "404") {
+      code404_ok = "1"
+      if (resp_ok == "1" && code404_ok == "1" ) {
+        ok = "1"
+      }
+      else if (length(response_handler_filter) == 0 && resp_ok = "0" && code404_ok == "1") {
+        ok = "1"
+      }
     }
+    else if ( resp_ok == "1" && (code50x == "0" && code40x == "0" && code30x == "0" && code20x == "0") ) {
+      ok = "1"
+    }
+
+    ## Disallow static urls
+    if ( trim_static == "1" ) {
+      if ( request_url ~ /\/files\// \
+        || request_url ~ /\.sql/ \
+        || request_url ~ /\.txt/ \
+        || request_url ~ /\.mp4/ \
+        || request_url ~ /\.webm/ \
+        || request_url ~ /\.asf/ \
+        || request_url ~ /\.asx/ \
+        || request_url ~ /\.wax/ \
+        || request_url ~ /\.wmv/ \
+        || request_url ~ /\.wmx/ \
+        || request_url ~ /\.bmp/ \
+        || request_url ~ /\.bz2/ \
+        || request_url ~ /\.class/ \
+        || request_url ~ /\.css/ \
+        || request_url ~ /\.divx/ \
+        || request_url ~ /\.doc/ \
+        || request_url ~ /\.docx/ \
+        || request_url ~ /\.eot/ \
+        || request_url ~ /\.exe/ \
+        || request_url ~ /\.flv/ \
+        || request_url ~ /\.gif/ \
+        || request_url ~ /\.gzip/ \
+        || request_url ~ /\.gz/ \
+        || request_url ~ /\.htc/ \
+        || request_url ~ /\.ico/ \
+        || request_url ~ /\.jpeg/ \
+        || request_url ~ /\.jpg/ \
+        || request_url ~ /\.js/ \
+        || request_url ~ /\.mdb/ \
+        || request_url ~ /\.mid/ \
+        || request_url ~ /\.midi/ \
+        || request_url ~ /\.mov/ \
+        || request_url ~ /\.qt/ \
+        || request_url ~ /\.mp3/ \
+        || request_url ~ /\.m4a/ \
+        || request_url ~ /\.m4v/ \
+        || request_url ~ /\.mov/ \
+        || request_url ~ /\.mpeg/ \
+        || request_url ~ /\.mpg/ \
+        || request_url ~ /\.mpe/ \
+        || request_url ~ /\.mpp/ \
+        || request_url ~ /\.odb/ \
+        || request_url ~ /\.odc/ \
+        || request_url ~ /\.odf/ \
+        || request_url ~ /\.odg/ \
+        || request_url ~ /\.odp/ \
+        || request_url ~ /\.ods/ \
+        || request_url ~ /\.odt/ \
+        || request_url ~ /\.ogg/ \
+        || request_url ~ /\.ogv/ \
+        || request_url ~ /\.otf/ \
+        || request_url ~ /\.pdf/ \
+        || request_url ~ /\.png/ \
+        || request_url ~ /\.pot/ \
+        || request_url ~ /\.pps/ \
+        || request_url ~ /\.ppt/ \
+        || request_url ~ /\.pptx/ \
+        || request_url ~ /\.ra/ \
+        || request_url ~ /\.ram/ \
+        || request_url ~ /\.rar/ \
+        || request_url ~ /\.svg/ \
+        || request_url ~ /\.svgz/ \
+        || request_url ~ /\.swf/ \
+        || request_url ~ /\.tar/ \
+        || request_url ~ /\.tbz/ \
+        || request_url ~ /\.tgz/ \
+        || request_url ~ /\.tif/ \
+        || request_url ~ /\.tiff/ \
+        || request_url ~ /\.ttf/ \
+        || request_url ~ /\.wav/ \
+        || request_url ~ /\.wma/ \
+        || request_url ~ /\.woff/ \
+        || request_url ~ /\.wri/ \
+        || request_url ~ /\.xla/ \
+        || request_url ~ /\.xls/ \
+        || request_url ~ /\.xlsx/ \
+        || request_url ~ /\.xlt/ \
+        || request_url ~ /\.xlw/ \
+        || request_url ~ /\.xml/ \
+        || request_url ~ /\.zip/ ) {
+        ok = "0"
+      }
+    }
+
+  }
+  ### Allow all output
+  else {
+    ok = "1"
+  }
+  ######## Output
+  if (ok == "1" ) {
+    printf("%s[%s %s] %s %s %s%s%s %s [ %s ]%s\n", msg_bgn, time_date, time_time, response_handler, response_status, request_host, request_url, request_query, request_ip, response_ttfb, msg_end)
   }
 
-  # Filtered output only  
-  if (ok == "1") {
-    printf("%s[%s %s] %s %s %s%s%s %s [ %s ]%s\n", msg_bgn, time_date, time_time, response_result, response_status, request_host, request_url, request_query, request_ip, response_ttfb, msg_end)
-  }
-
-  ok = "1"
+  ########
+  ok = "0"
+  code2_ok = "0"
+  code3_ok = "0"
+  code4_ok = "0"
+  code5_ok = "0"
+  code404_ok = "0"
+  resp_ok = "0"
   request_ip = ""
   time_date = ""
   time_time = ""
@@ -275,5 +338,5 @@ ${CMD[@]} | awk -F'|' \
   response_status = ""
   response_size = ""
   response_ttfb = ""
-  response_result = "miss"
+  response_handler = ""
 }'
