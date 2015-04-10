@@ -6,25 +6,35 @@ Supports Varnish (varnishncsa utility) of 3.x and 4.x versions
 
 ### Usage
 ```
-varnishncsa_monitor [-l hostname] [-n instance] [-t] [-e] -[c] [-m] [-j] [-h]
+varnishncsa_monitor [options]
 ```
 
-#### Arguments
+#### Options
   `-l`   host to monitor (default is localhost), possible to specify remote machine (but script should be deployed manually and available on $PATH for remote user)
 
   `-n`   specify Varnish instance - name or absolute path where daemon keeps temporary files and persistent state
+  
+  `-r`   filter output by response handler (hit / miss/ pass / pipe)
+
+  `-5`   display responses of 50x http codes
+
+  `-4`   display responses of 40x http codes
+  
+  `-3`   display responses of 30x http codes
+
+  `-2`   display responses of 20x http codes 
+
+  `-m`   display responses of 404 http codes only
 
   `-t`   trim static files from output
- 
-  `-e`   display only 50x errors
-
-  `-c`   display only 40x errors
-
-  `-m`   display only 404 errors
 
   `-j`   disable colorized output
 
   `-h`   print program usage and exit
+
+### Screenshot
+
+![VarnishNCSA Monitor](/ScreenShot.png?raw=true "VarnishNCSA Monitor")
 
 ### LICENSE
 
