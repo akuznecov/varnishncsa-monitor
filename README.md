@@ -27,6 +27,8 @@ varnishncsa_monitor [options]
   `-m`   display responses of 404 http codes only
 
   `-t`   trim static files from output
+  
+  `-d`   trim date and time fields from output
 
   `-j`   disable colorized output
 
