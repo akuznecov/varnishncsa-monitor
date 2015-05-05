@@ -6,7 +6,7 @@ AWK_VERSION=`awk -W version |& head -n1 | awk '{print $1}'`
 if [ "${AWK_VERSION}" == "GNU" ]; then
   AWK=(awk)
 elif [ "${AWK_VERSION}" == "mawk" ]; then
-  AWK=(awk -W -Winteractive)
+  AWK=(awk -Winteractive)
 fi
 
 COLORS=1
