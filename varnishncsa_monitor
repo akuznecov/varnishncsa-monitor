@@ -2,6 +2,13 @@
 
 trap 'echo -e "\033[0m"; exit' SIGINT
 
+AWK_VERSION=`awk -W version |& head -n1 | awk '{print $1}'`
+if [ "${AWK_VERSION}" == "GNU" ]; then
+  AWK=(awk)
+elif [ "${AWK_VERSION}" == "mawk" ]; then
+  AWK=(awk -W -Winteractive)
+fi
+
 COLORS=1
 TRIMSTATIC=0
 CODE50X=0
@@ -76,7 +83,7 @@ else
   CMD=(varnishncsa -n $INSTANCE -F "$LOG_FORMAT")
 fi
 
-${CMD[@]} | awk -F'|' \
+${CMD[@]} | ${AWK[@]} -F'|' \
   -v trim_static="$TRIMSTATIC" \
   -v code50x="$CODE50X" \
   -v code40x="$CODE40X" \
