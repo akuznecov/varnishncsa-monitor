@@ -108,7 +108,7 @@ ${CMD[@]} | ${AWK[@]} -F'|' \
   request_host = ""
   request_url = ""
   request_query = ""
-  response_method = ""
+  request_method = ""
   response_status = ""
   response_size = ""
   response_ttfb = ""
@@ -140,7 +140,7 @@ ${CMD[@]} | ${AWK[@]} -F'|' \
   request_host = $4
   request_url = $5
   request_query = $6
-  response_method = $7
+  request_method = $7
   response_status = $8
   response_size = $9
   response_ttfb = $10
@@ -353,7 +353,7 @@ ${CMD[@]} | ${AWK[@]} -F'|' \
 
   ######## Output
   if (ok == "1" ) {
-    printf("%s%s%s%s %s %s%s%s %s [ %s ]%s\n", msg_bgn, time_date, time_time, response_handler, response_status, request_host, request_url, request_query, request_ip, response_ttfb, msg_end)
+    printf("%s%s%s%s %s %s %s%s%s %s [ %s ]%s\n", msg_bgn, time_date, time_time, response_handler, response_status, request_method, request_host, request_url, request_query, request_ip, response_ttfb, msg_end)
   }
 
   ########
@@ -371,7 +371,7 @@ ${CMD[@]} | ${AWK[@]} -F'|' \
   request_host = ""
   request_url = ""
   request_query = ""
-  response_method = ""
+  request_method = ""
   response_status = ""
   response_size = ""
   response_ttfb = ""
