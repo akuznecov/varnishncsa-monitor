@@ -62,7 +62,7 @@ while getopts "l:n:r:t5432mjdh" Option; do
       echo "   -2   display 20x http code output"
       echo "   -m   display only 404 errors"
       echo "   -j   do not use colors on output"
-      echo "   -j   do not print date and time on output"
+      echo "   -d   do not print date and time on output"
       echo "   -h   displays this help message"  
       echo ""
       exit 0
